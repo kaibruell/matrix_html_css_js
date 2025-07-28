@@ -7,4 +7,4 @@ Just open the .html in your Browser... Or better not...
 - terminal.html - pure waste of time
 - both.html - do NOT open this file! 
 
-**GO BACK TO WORK! 
+**GO BACK TO WORK!**
