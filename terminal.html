@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .terminal-window {
+            width: 854px;
+            height: 592px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            min-width: 400px;
+            min-height: 300px;
+        }
+
+        .terminal-window.focused {
+            border-color: #555;
+        }
+
+        .terminal-header {
+            background: #1a1a1a;
+            height: 32px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 12px;
+            cursor: move;
+            user-select: none;
+        }
+
+        .terminal-title {
+            color: #888;
+            font-size: 13px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            transition: color 0.2s;
+        }
+
+        .terminal-window.focused .terminal-title {
+            color: #fff;
+        }
+
+        .terminal-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #0a0a0a;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .terminal-window:not(.focused) .control-btn {
+            background: #666 !important;
+        }
+
+        .control-btn:hover {
+            opacity: 0.8;
+        }
+
+        .close-btn {
+            background: #ff5f56;
+        }
+
+        .maximize-btn {
+            background: #27c93f;
+        }
+
+        .terminal-body {
+            flex: 1;
+            background: #0a0a0a;
+            padding: 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+
+        .terminal-content {
+            color: #00ff00;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            padding: 0;
+        }
+
+        .terminal-line {
+            display: flex;
+            align-items: baseline;
+            min-height: 20px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .prompt {
+            color: #00ff00;
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+
+        .terminal-input-wrapper {
+            flex: 1;
+            display: inline-flex;
+            position: relative;
+        }
+
+        .terminal-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #00ff00;
+            font-family: inherit;
+            font-size: inherit;
+            width: 100%;
+            padding: 0;
+            margin: 0;
+            caret-color: transparent;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: #00ff00;
+            animation: blink 1s infinite;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Scrollbar styling */
+        .terminal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-body::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        /* Resize handles */
+        .resize-handle {
+            position: absolute;
+            background: transparent;
+        }
+
+        .resize-handle-n {
+            top: 0;
+            left: 10px;
+            right: 10px;
+            height: 5px;
+            cursor: ns-resize;
+        }
+
+        .resize-handle-s {
+            bottom: 0;
+            left: 10px;
+            right: 10px;
+            height: 5px;
+            cursor: ns-resize;
+        }
+
+        .resize-handle-e {
+            top: 10px;
+            right: 0;
+            bottom: 10px;
+            width: 5px;
+            cursor: ew-resize;
+        }
+
+        .resize-handle-w {
+            top: 10px;
+            left: 0;
+            bottom: 10px;
+            width: 5px;
+            cursor: ew-resize;
+        }
+
+        .resize-handle-ne {
+            top: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            cursor: nesw-resize;
+        }
+
+        .resize-handle-nw {
+            top: 0;
+            left: 0;
+            width: 10px;
+            height: 10px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle-se {
+            bottom: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle-sw {
+            bottom: 0;
+            left: 0;
+            width: 10px;
+            height: 10px;
+            cursor: nesw-resize;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal-window focused" id="terminal">
+        <div class="terminal-header" id="terminal-header">
+            <div class="terminal-title">Terminal - root@matrix</div>
+            <div class="terminal-controls">
+                <button class="control-btn maximize-btn" id="maximize-btn">⬜</button>
+                <button class="control-btn close-btn" id="close-btn">✕</button>
+            </div>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+            <div class="terminal-content" id="terminal-content"><div class="terminal-line" id="current-line"><span class="prompt">root@matrix:~$</span><div class="terminal-input-wrapper"><input type="text" class="terminal-input" id="terminal-input" autofocus><span class="cursor" id="cursor"></span></div></div></div>
+        </div>
+        <!-- Resize handles -->
+        <div class="resize-handle resize-handle-n" data-resize="n"></div>
+        <div class="resize-handle resize-handle-s" data-resize="s"></div>
+        <div class="resize-handle resize-handle-e" data-resize="e"></div>
+        <div class="resize-handle resize-handle-w" data-resize="w"></div>
+        <div class="resize-handle resize-handle-ne" data-resize="ne"></div>
+        <div class="resize-handle resize-handle-nw" data-resize="nw"></div>
+        <div class="resize-handle resize-handle-se" data-resize="se"></div>
+        <div class="resize-handle resize-handle-sw" data-resize="sw"></div>
+    </div>
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const terminalHeader = document.getElementById('terminal-header');
+        const terminalBody = document.getElementById('terminal-body');
+        const terminalContent = document.getElementById('terminal-content');
+        let terminalInput = document.getElementById('terminal-input');
+        let cursor = document.getElementById('cursor');
+        const closeBtn = document.getElementById('close-btn');
+        const maximizeBtn = document.getElementById('maximize-btn');
+
+        let isDragging = false;
+        let isResizing = false;
+        let isMaximized = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+        let previousSize = { width: '854px', height: '592px', top: '', left: '' };
+        let resizeDirection = '';
+        let startWidth;
+        let startHeight;
+        let startX;
+        let startY;
+        let startLeft;
+        let startTop;
+
+        // Command history
+        const commandHistory = [];
+        let historyIndex = -1;
+
+        // Window focus handling
+        document.addEventListener('click', (e) => {
+            if (terminal.contains(e.target)) {
+                terminal.classList.add('focused');
+                if (terminalInput) {
+                    terminalInput.focus();
+                }
+            } else {
+                terminal.classList.remove('focused');
+            }
+        });
+
+        // Focus input when clicking in terminal body
+        terminalBody.addEventListener('click', (e) => {
+            e.stopPropagation();
+            terminal.classList.add('focused');
+            if (terminalInput) {
+                terminalInput.focus();
+            }
+        });
+
+        // Update cursor position
+        function updateCursorPosition() {
+            if (!terminalInput || !cursor) return;
+            
+            const inputValue = terminalInput.value;
+            const textWidth = getTextWidth(inputValue, getComputedStyle(terminalInput));
+            cursor.style.left = textWidth + 'px';
+        }
+
+        function getTextWidth(text, style) {
+            const canvas = getTextWidth.canvas || (getTextWidth.canvas = document.createElement("canvas"));
+            const context = canvas.getContext("2d");
+            context.font = style.font || `${style.fontSize} ${style.fontFamily}`;
+            return context.measureText(text).width;
+        }
+
+        // Handle input
+        function handleInput(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const command = terminalInput.value.trim();
+                
+                // Get current line
+                const currentLine = terminalInput.closest('.terminal-line');
+                
+                // Create output line with command
+                const outputLine = document.createElement('div');
+                outputLine.className = 'terminal-line';
+                outputLine.innerHTML = `<span class="prompt">root@matrix:~$</span><span>${command}</span>`;
+                
+                // Replace current line with output
+                currentLine.replaceWith(outputLine);
+                
+                // Process command
+                if (command !== '') {
+                    commandHistory.push(command);
+                    historyIndex = commandHistory.length;
+                    
+                    if (command.toLowerCase() === 'clear') {
+                        terminalContent.innerHTML = '';
+                    }
+                }
+                
+                // Create new input line
+                const newLine = document.createElement('div');
+                newLine.className = 'terminal-line';
+                newLine.innerHTML = `
+                    <span class="prompt">root@matrix:~$</span>
+                    <div class="terminal-input-wrapper">
+                        <input type="text" class="terminal-input" id="new-terminal-input" autofocus>
+                        <span class="cursor" id="new-cursor"></span>
+                    </div>
+                `;
+                terminalContent.appendChild(newLine);
+                
+                // Update references
+                terminalInput = document.getElementById('new-terminal-input');
+                cursor = document.getElementById('new-cursor');
+                
+                // Add event listeners to new input
+                terminalInput.addEventListener('keydown', handleInput);
+                terminalInput.addEventListener('input', updateCursorPosition);
+                terminalInput.focus();
+                
+                // Give IDs back
+                terminalInput.id = 'terminal-input';
+                cursor.id = 'cursor';
+                
+                // Scroll to bottom
+                terminalBody.scrollTop = terminalBody.scrollHeight;
+            }
+        }
+
+        // Initial event listeners
+        terminalInput.addEventListener('keydown', handleInput);
+        terminalInput.addEventListener('input', updateCursorPosition);
+
+        // Dragging functionality
+        function dragStart(e) {
+            if (isMaximized) return;
+            
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+
+            if (e.target === terminalHeader) {
+                isDragging = true;
+            }
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                terminal.style.transform = `translate(${currentX}px, ${currentY}px)`;
+            }
+        }
+
+        // Close button
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            terminal.style.display = 'none';
+        });
+
+        // Maximize button
+        maximizeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!isMaximized) {
+                previousSize = {
+                    width: terminal.style.width || '854px',
+                    height: terminal.style.height || '592px',
+                    top: terminal.style.top,
+                    left: terminal.style.left
+                };
+                
+                terminal.style.width = '100vw';
+                terminal.style.height = '100vh';
+                terminal.style.top = '0';
+                terminal.style.left = '0';
+                terminal.style.transform = 'none';
+                xOffset = 0;
+                yOffset = 0;
+                isMaximized = true;
+            } else {
+                terminal.style.width = previousSize.width;
+                terminal.style.height = previousSize.height;
+                terminal.style.top = previousSize.top;
+                terminal.style.left = previousSize.left;
+                isMaximized = false;
+            }
+        });
+
+        // Resize functionality
+        const resizeHandles = document.querySelectorAll('.resize-handle');
+        
+        resizeHandles.forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                if (isMaximized) return;
+                
+                isResizing = true;
+                resizeDirection = handle.getAttribute('data-resize');
+                
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                const rect = terminal.getBoundingClientRect();
+                startWidth = rect.width;
+                startHeight = rect.height;
+                startLeft = rect.left;
+                startTop = rect.top;
+                
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            let newWidth = startWidth;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newTop = startTop;
+            
+            if (resizeDirection.includes('e')) {
+                newWidth = startWidth + dx;
+            }
+            if (resizeDirection.includes('w')) {
+                newWidth = startWidth - dx;
+                newLeft = startLeft + dx;
+            }
+            if (resizeDirection.includes('s')) {
+                newHeight = startHeight + dy;
+            }
+            if (resizeDirection.includes('n')) {
+                newHeight = startHeight - dy;
+                newTop = startTop + dy;
+            }
+            
+            // Apply minimum size constraints
+            if (newWidth >= 400) {
+                terminal.style.width = newWidth + 'px';
+                if (resizeDirection.includes('w')) {
+                    terminal.style.left = newLeft + 'px';
+                }
+            }
+            if (newHeight >= 300) {
+                terminal.style.height = newHeight + 'px';
+                if (resizeDirection.includes('n')) {
+                    terminal.style.top = newTop + 'px';
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+            resizeDirection = '';
+        });
+
+        // Mouse events
+        terminalHeader.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+
+        // Initial focus
+        terminalInput.focus();
+        updateCursorPosition();
+    </script>
+</body>
+</html>
