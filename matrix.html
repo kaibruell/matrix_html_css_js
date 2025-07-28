@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Interface - Portfolio</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+        
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff00;
+            font-size: 24px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-align: left;
+            padding: 30px 50px;
+            border: 2px solid #00ff00;
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.95);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1000;
+            text-shadow: 0 0 10px #00ff00;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            min-width: 400px;
+        }
+        
+        .dialog.error {
+            color: #ff0000;
+            border-color: #ff0000;
+            text-shadow: 0 0 10px #ff0000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+        }
+        
+        .cursor {
+            display: inline-block;
+            width: 12px;
+            height: 20px;
+            background: #00ff00;
+            margin-left: 5px;
+            animation: blink 1s infinite;
+        }
+        
+        .cursor.error {
+            background: #ff0000;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        @keyframes glitch {
+            0%, 100% {
+                text-shadow: 0 0 10px currentColor;
+                transform: translate(-50%, -50%);
+            }
+            20% {
+                text-shadow: -2px 0 currentColor, 2px 0 #00ff00;
+                transform: translate(-48%, -50%);
+            }
+            40% {
+                text-shadow: 2px 0 currentColor, -2px 0 #0000ff;
+                transform: translate(-52%, -50%);
+            }
+            60% {
+                text-shadow: 0 0 10px currentColor;
+                transform: translate(-50%, -48%);
+            }
+            80% {
+                text-shadow: 1px 1px 0 #ff00ff, -1px -1px 0 #00ffff;
+                transform: translate(-50%, -52%);
+            }
+        }
+        
+        .glitch-active {
+            animation: glitch 0.3s infinite;
+        }
+        
+        .typing-text {
+            display: inline;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix"></canvas>
+    
+    <div id="rootDialog" class="dialog">
+        <div id="typingText" class="typing-text"></div>
+        <span id="cursor" class="cursor"></span>
+        <div id="inputArea" style="display: none; margin-top: 20px;">
+            <span style="color: #888;">root@matrix:~$ </span>
+            <span id="userInput"></span>
+            <span class="cursor"></span>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        
+        // Halbbreite Katakana (U+FF65 bis U+FF9F)
+        const katakana = [];
+        for (let i = 0xFF65; i <= 0xFF9F; i++) {
+            katakana.push(String.fromCharCode(i));
+        }
+        
+        // Canvas Setup
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Matrix-Konfiguration
+        const fontSize = 20;
+        const columns = Math.floor(canvas.width / fontSize);
+        const drops = new Array(columns).fill(0);
+        const speeds = new Array(columns).fill(0).map(() => 0.1 + Math.random() * 0.3);
+        const trails = new Array(columns).fill(0).map(() => 10 + Math.random() * 5);
+        
+        // Zeichen-Matrix für persistente Zeichen
+        const charMatrix = new Array(columns).fill(null).map(() => []);
+        
+        // Zeichenfunktion
+        function draw() {
+            // Schwarzer Hintergrund ohne Transparenz
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Grüne Zeichen
+            ctx.font = fontSize + 'px monospace';
+            
+            for (let i = 0; i < drops.length; i++) {
+                const currentRow = Math.floor(drops[i]);
+                const y = currentRow * fontSize;
+                
+                if (!charMatrix[i][currentRow]) {
+                    charMatrix[i][currentRow] = katakana[Math.floor(Math.random() * katakana.length)];
+                }
+                
+                const trailLength = trails[i];
+                
+                for (let j = 0; j < trailLength; j++) {
+                    const row = currentRow - j;
+                    if (row >= 0 && charMatrix[i][row]) {
+                        const charY = row * fontSize + fontSize;
+                        
+                        if (j === 0) {
+                            ctx.fillStyle = '#0F0';
+                            ctx.shadowBlur = 8;
+                            ctx.shadowColor = '#0F0';
+                        } else {
+                            const opacity = Math.max(0.1, 1 - (j / trailLength));
+                            ctx.fillStyle = `rgba(0, 255, 0, ${opacity})`;
+                            ctx.shadowBlur = 0;
+                        }
+                        
+                        ctx.fillText(charMatrix[i][row], i * fontSize, charY);
+                    }
+                }
+                
+                drops[i] += speeds[i];
+                
+                const maxRows = Math.ceil(canvas.height / fontSize);
+                if (currentRow > maxRows + trailLength) {
+                    drops[i] = 0;
+                    speeds[i] = 0.1 + Math.random() * 0.3;
+                    trails[i] = 10 + Math.random() * 5;
+                    charMatrix[i] = [];
+                }
+            }
+        }
+        
+        // Animation mit 30 FPS
+        setInterval(draw, 33);
+        
+        // Dialog-System
+        const rootDialog = document.getElementById('rootDialog');
+        const typingTextEl = document.getElementById('typingText');
+        const cursorEl = document.getElementById('cursor');
+        const inputArea = document.getElementById('inputArea');
+        const userInputEl = document.getElementById('userInput');
+        
+        let currentInput = '';
+        let dialogActive = false;
+        
+        // Typing Animation
+        function typeText(text, element, callback, speed = 80) {
+            let i = 0;
+            element.textContent = '';
+            
+            const typeInterval = setInterval(() => {
+                element.textContent += text[i];
+                i++;
+                
+                if (i >= text.length) {
+                    clearInterval(typeInterval);
+                    if (callback) callback();
+                }
+            }, speed);
+        }
+        
+        // Dialog anzeigen
+        function showRootDialog() {
+            dialogActive = true;
+            rootDialog.classList.add('glitch-active');
+            
+            // Cursor für Typing-Animation wieder anzeigen
+            cursorEl.style.display = 'inline-block';
+            
+            // Fade in
+            let opacity = 0;
+            const fadeIn = setInterval(() => {
+                opacity += 0.05;
+                rootDialog.style.opacity = opacity;
+                if (opacity >= 1) {
+                    clearInterval(fadeIn);
+                    
+                    // Glitch für 500ms
+                    setTimeout(() => {
+                        rootDialog.classList.remove('glitch-active');
+                        
+                        // Text animiert eintippen
+                        setTimeout(() => {
+                            typeText('Do you want to continue as root? (y/n)', typingTextEl, () => {
+                                // Ersten Cursor verstecken und Input-Bereich anzeigen
+                                cursorEl.style.display = 'none';
+                                inputArea.style.display = 'block';
+                                rootDialog.style.pointerEvents = 'auto';
+                            });
+                        }, 500);
+                    }, 500);
+                }
+            }, 20);
+        }
+        
+        // Error Dialog
+        function showErrorDialog() {
+            rootDialog.classList.add('error');
+            rootDialog.classList.add('glitch-active');
+            cursorEl.classList.add('error');
+            
+            typingTextEl.textContent = '';
+            inputArea.style.display = 'none';
+            currentInput = '';
+            userInputEl.textContent = '';
+            
+            typeText('ERROR: Permission Denied\nAccess Restricted', typingTextEl, () => {
+                setTimeout(() => {
+                    rootDialog.classList.remove('glitch-active');
+                    
+                    setTimeout(() => {
+                        let fadeOpacity = 1;
+                        const fadeOut = setInterval(() => {
+                            fadeOpacity -= 0.05;
+                            rootDialog.style.opacity = fadeOpacity;
+                            if (fadeOpacity <= 0) {
+                                clearInterval(fadeOut);
+                                rootDialog.style.opacity = 0;
+                                rootDialog.style.pointerEvents = 'none';
+                                
+                                // Dialog komplett zurücksetzen
+                                setTimeout(() => {
+                                    rootDialog.classList.remove('error');
+                                    cursorEl.classList.remove('error');
+                                    typingTextEl.textContent = '';
+                                    inputArea.style.display = 'none';
+                                    dialogActive = false;
+                                    
+                                    // Nach Pause neuen Dialog starten
+                                    setTimeout(showRootDialog, 1000);
+                                }, 100);
+                            }
+                        }, 20);
+                    }, 2000);
+                }, 1000);
+            }, 50);
+        }
+        
+        // Success (für später)
+        function handleSuccess() {
+            typingTextEl.textContent = '';
+            inputArea.style.display = 'none';
+            
+            typeText('Access Granted\nWelcome, root user\nInitializing portfolio...', typingTextEl, () => {
+                setTimeout(() => {
+                    // Hier kannst du später das Portfolio laden
+                    console.log('Portfolio wird geladen...');
+                }, 2000);
+            }, 60);
+        }
+        
+        // Keyboard Event Handler
+        document.addEventListener('keydown', (e) => {
+            if (!dialogActive || inputArea.style.display === 'none') return;
+            
+            if (e.key === 'Enter') {
+                const input = currentInput.toLowerCase().trim();
+                
+                if (input === 'y' || input === 'yes') {
+                    handleSuccess();
+                } else if (input === 'n' || input === 'no') {
+                    showErrorDialog();
+                } else {
+                    // Ungültige Eingabe - Input zurücksetzen
+                    currentInput = '';
+                    userInputEl.textContent = '';
+                }
+            } else if (e.key === 'Backspace') {
+                currentInput = currentInput.slice(0, -1);
+                userInputEl.textContent = currentInput;
+            } else if (e.key.length === 1 && /[yn]/i.test(e.key)) {
+                // Nur y, n, Y, N erlauben
+                currentInput += e.key;
+                userInputEl.textContent = currentInput;
+            }
+            
+            e.preventDefault();
+        });
+        
+        // Initial Dialog nach 5 Sekunden
+        setTimeout(showRootDialog, 5000);
+    </script>
+</body>
+</html>
